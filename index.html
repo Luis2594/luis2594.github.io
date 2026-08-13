@@ -41,6 +41,52 @@
   })();
 </script>
 
+<!-- ============================================================
+     Analytics config
+     Fill these in once. Leave a value empty to disable that provider.
+       ga4        — Google Analytics 4 Measurement ID (analytics.google.com → Admin → Data streams)
+       cloudflare — Cloudflare Web Analytics token (dash.cloudflare.com → Analytics → Web Analytics)
+     Nothing is sent from localhost or file:// so local edits stay out of the reports.
+     ============================================================ -->
+<script>
+  window.ANALYTICS = {
+    ga4: 'G-5MD7RSHD55',
+    cloudflare: '04e29202976041c3b4ff15e3a55d3b21'
+  };
+  window.ANALYTICS.enabled =
+    !/^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname) &&
+    location.protocol !== 'file:';
+</script>
+
+<!-- Google Analytics 4 --------------------------------------------------- -->
+<script>
+  (function () {
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function () { window.dataLayer.push(arguments); };
+
+    var id = window.ANALYTICS.ga4;
+    if (!id || !window.ANALYTICS.enabled) return;
+
+    var s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(id);
+    document.head.appendChild(s);
+
+    /* `visitor` lets you tell people apart: share links like
+       https://luis2594.github.io/?v=acme-recruiter and the tag shows up on
+       every event that visit fires. utm_content works the same way. */
+    var q = new URLSearchParams(location.search);
+    var visitor = q.get('v') || q.get('utm_content') || '';
+
+    gtag('js', new Date());
+    gtag('config', id, {
+      anonymize_ip: true,
+      visitor: visitor || undefined
+    });
+    if (visitor) gtag('set', 'user_properties', { visitor: visitor });
+  })();
+</script>
+
 <style>
 /* ============================================================
    Tokens
@@ -1774,6 +1820,109 @@ figure { margin: 0; }
 
   /* Footer year -------------------------------------------------------- */
   document.getElementById('year').textContent = new Date().getFullYear();
+})();
+</script>
+
+<!-- ============================================================
+     Cloudflare Web Analytics — cookieless, no consent banner needed
+     ============================================================ -->
+<script>
+  (function () {
+    var token = window.ANALYTICS && window.ANALYTICS.cloudflare;
+    if (!token || !window.ANALYTICS.enabled) return;
+    var s = document.createElement('script');
+    s.defer = true;
+    s.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+    s.setAttribute('data-cf-beacon', JSON.stringify({ token: token }));
+    document.body.appendChild(s);
+  })();
+</script>
+
+<!-- ============================================================
+     Engagement events → GA4
+     Silently does nothing when GA4 isn't configured.
+     ============================================================ -->
+<script>
+(function () {
+  if (typeof window.gtag !== 'function' || !window.ANALYTICS.ga4 || !window.ANALYTICS.enabled) return;
+
+  function send(name, params) { window.gtag('event', name, params || {}); }
+
+  /* Which card / section the click happened in ------------------------- */
+  function contextFor(el) {
+    var box = el.closest('.card, .job, .side-card, section');
+    var title = box && box.querySelector('h2, h3');
+    return title ? title.textContent.trim().slice(0, 90) : 'page';
+  }
+
+  /* Clicks on anything that leads off the page ------------------------- */
+  document.addEventListener('click', function (e) {
+    if (!e.target || !e.target.closest) return;
+    var a = e.target.closest('a[href]');
+    if (!a) return;
+
+    var href = a.getAttribute('href') || '';
+    var name;
+    if (href.indexOf('mailto:') === 0)             name = 'contact_email';
+    else if (href.indexOf('apps.apple.com') > -1)  name = 'store_click_ios';
+    else if (href.indexOf('play.google.com') > -1) name = 'store_click_android';
+    else if (href.indexOf('linkedin.com') > -1)    name = 'social_linkedin';
+    else if (href.indexOf('github.com') > -1)      name = 'social_github';
+    else if (/^https?:/i.test(href))               name = 'outbound_click';
+    else return; /* in-page anchors are already covered by section_view */
+
+    send(name, {
+      link_url: href,
+      link_text: (a.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 80),
+      context: contextFor(a)
+    });
+  }, true);
+
+  /* Which sections actually got read ----------------------------------- */
+  var sections = document.querySelectorAll('section[id]');
+  if ('IntersectionObserver' in window && sections.length) {
+    var seen = {};
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        var id = entry.target.id;
+        if (!entry.isIntersecting || seen[id]) return;
+        seen[id] = true;
+        send('section_view', { section: id });
+      });
+    }, { rootMargin: '-25% 0px -25% 0px', threshold: 0.01 });
+    Array.prototype.forEach.call(sections, function (s) { io.observe(s); });
+  }
+
+  /* How far down the page they got ------------------------------------- */
+  var marks = [25, 50, 75, 100], reached = {}, ticking = false;
+  function measure() {
+    ticking = false;
+    var doc = document.documentElement;
+    var scrollable = doc.scrollHeight - doc.clientHeight;
+    var pct = scrollable > 0 ? Math.round((doc.scrollTop / scrollable) * 100) : 100;
+    marks.forEach(function (m) {
+      if (pct >= m && !reached[m]) {
+        reached[m] = true;
+        send('scroll_depth', { percent: m });
+      }
+    });
+  }
+  window.addEventListener('scroll', function () {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(measure);
+  }, { passive: true });
+  measure();
+
+  /* Time on page — separates a real read from a bounce ------------------ */
+  [15, 30, 60, 120, 300].forEach(function (s) {
+    setTimeout(function () {
+      if (!document.hidden) send('time_on_page', { seconds: s });
+    }, s * 1000);
+  });
+
+  /* Someone printing or saving the page as PDF is a strong signal ------- */
+  window.addEventListener('beforeprint', function () { send('print_or_pdf'); });
 })();
 </script>
 
