@@ -78,12 +78,18 @@
     var q = new URLSearchParams(location.search);
     var visitor = q.get('v') || q.get('utm_content') || '';
 
+    /* Adding ?debug=1 streams this visit into GA4's DebugView, which shows
+       every event within seconds instead of waiting on the standard reports. */
+    var debug = q.has('debug');
+
     gtag('js', new Date());
     gtag('config', id, {
       anonymize_ip: true,
-      visitor: visitor || undefined
+      visitor: visitor || undefined,
+      debug_mode: debug || undefined
     });
     if (visitor) gtag('set', 'user_properties', { visitor: visitor });
+    if (debug) console.info('[analytics] GA4 ' + id + ' in debug mode, visitor=' + (visitor || '(none)'));
   })();
 </script>
 
