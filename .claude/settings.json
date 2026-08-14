@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e ' *)",
+      "Bash(curl -s \"https://luis2594.github.io/?cb=$\\(git rev-parse --short HEAD\\)\")",
+      "Bash(curl -s \"https://www.googletagmanager.com/gtag/js?id=G-5MD7RSHD55\" -o /tmp/gtag_real.js -w \"bytes=%{size_download} http=%{http_code}\\\\n\")",
+      "Bash(curl -s \"https://www.googletagmanager.com/gtag/js?id=G-ZZZZZZZZZZ\" -o /tmp/gtag_fake.js -w \"bytes=%{size_download} http=%{http_code}\\\\n\")",
+      "Bash(git commit -q -m 'Add ?debug=1 to stream events into GA4 DebugView *)"
+    ]
+  }
+}
